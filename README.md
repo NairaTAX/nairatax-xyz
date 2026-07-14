@@ -89,8 +89,15 @@ pending a split into `nairatax-engine` / `nairatax-rules` (see
 nairatax-xyz/
 │
 ├── README.md              ← This file
-├── pyproject.toml         ← Package metadata, ruff/pytest config
+├── CONTRIBUTING.md        ← Dev workflow + project conventions
+├── CHANGELOG.md           ← What shipped, release by release
+├── LICENSE                ← MIT
+├── Makefile               ← install/test/coverage/lint/fix/check
+├── pyproject.toml         ← Package metadata, ruff/pytest/coverage config
 ├── .env.example           ← Configuration template
+├── .github/workflows/     ← CI (lint + test + coverage floor)
+├── docs/
+│   └── methodology.md     ← FIFO / swap / tax-allocation reasoning, plain language
 ├── src/nairatax/
 │   ├── models.py          ← Shared data models (Decimal-based)
 │   ├── config.py          ← Env-driven settings
@@ -137,9 +144,15 @@ roadmap. Add `--format csv` or `--output report.json` as needed; run
 ## Testing
 
 ```bash
-pytest        # full suite
-ruff check .  # lint
+pytest                                                        # full suite
+pytest --cov=nairatax --cov-report=term-missing               # with coverage
+ruff check .                                                  # lint
 ```
+
+Or via the Makefile: `make test`, `make coverage`, `make lint`, `make fix`,
+`make check` (lint + test). CI runs lint and test on every push/PR across
+Python 3.11 and 3.12, and fails the build under 90% line coverage — the
+suite currently sits at ~98%.
 
 ## Roadmap
 
@@ -148,9 +161,12 @@ ruff check .  # lint
 - [x] Portfolio-wide FIFO cost basis engine
 - [x] Nigeria rule pack mechanism (progressive bands + consolidated relief) — figures unverified, see the pack file
 - [x] CSV/JSON report export and a `nairatax` CLI
+- [x] Full test suite (100+ tests, ~98% coverage) and CI (GitHub Actions: lint + test + 90% coverage floor)
+- [x] Dev/contributor tooling: Makefile, CONTRIBUTING.md, CHANGELOG.md, `docs/methodology.md`, PEP 561 `py.typed`
 - [ ] Historical, multi-asset fiat pricing via a real data-provider adapter (currently a fixed-rate stand-in only)
 - [ ] Confirm Nigeria rule pack figures against the Tax Act 2025 / NRS Fourth Schedule and flip `verified: true`
 - [ ] Review UI for NEEDS_REVIEW events (resolves to acquisition/income/gift) — split into `nairatax-web`
+- [ ] `account_merge` normalization (needs an operation-effects lookup, same idea as claimable balance claims)
 - [ ] Split the reference implementation into `nairatax-engine` and `nairatax-rules`
 - [ ] Additional jurisdiction rule packs
 
@@ -158,11 +174,12 @@ ruff check .  # lint
 
 **Prototype.** The ingestion → classification → FIFO cost basis → rules →
 report pipeline runs end to end today, against Stellar Horizon, with a full
-test suite (see `pytest`). What's *not* yet real: historical fiat pricing
-(the CLI takes a fixed manual rate), the Nigeria tax figures (explicitly
-unverified — see below), and any UI for resolving events the classifier
-flags as needing review. Treat output as a structural preview of what a
-finished report will look like, not something to file on.
+test suite and CI (100+ tests, ~98% coverage — see [Testing](#testing)).
+What's *not* yet real: historical fiat pricing (the CLI takes a fixed
+manual rate), the Nigeria tax figures (explicitly unverified — see below),
+and any UI for resolving events the classifier flags as needing review.
+Treat output as a structural preview of what a finished report will look
+like, not something to file on.
 
 ## Important — Not Tax Advice
 
@@ -200,6 +217,8 @@ NairaTax is a focused, multi-repo project. Areas where help is useful:
 - Frontend: review/tag UI and reporting (`nairatax-web`)
 - Soroban contract design, if an on-chain component is added (`nairatax-contracts`)
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, workflow, and
+project conventions (Decimal over float, don't guess, rule packs as data).
 Open an issue in the relevant repo to discuss before submitting a PR.
 
 ## NairaTax Organization
