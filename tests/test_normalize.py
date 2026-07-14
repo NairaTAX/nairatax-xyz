@@ -293,6 +293,18 @@ def test_claimable_balance_claim_without_effect_is_skipped_not_guessed():
     assert normalize_claimable_balance_claim(raw, ACCOUNT, effects=[]) is None
 
 
+def test_claimable_balance_claim_by_someone_else_is_skipped():
+    raw = {
+        "id": "15",
+        "type": "claim_claimable_balance",
+        "created_at": "2026-06-01T00:00:00Z",
+        "claimant": OTHER,
+        "balance_id": "00000000abc",
+    }
+    effects = [{"type": "claimable_balance_claimed", "asset": "native", "amount": "1"}]
+    assert normalize_claimable_balance_claim(raw, ACCOUNT, effects) is None
+
+
 class _FakeHorizonClient:
     """Duck-typed stand-in for HorizonClient — the orchestrator only calls
     these four methods, so a real HTTP mock would be pure overhead here.
@@ -335,12 +347,21 @@ def test_normalize_account_activity_merges_and_sorts_by_time():
         "claimant": ACCOUNT,
         "balance_id": "bal-1",
     }
+    create_op = {
+        "id": "16",
+        "type": "create_claimable_balance",
+        "created_at": "2026-03-04T00:00:00Z",
+        "source_account": ACCOUNT,
+        "asset": "native",
+        "amount": "20.0000000",
+        "claimants": [{"destination": OTHER}],
+    }
     unrelated_op = {"id": "99", "type": "manage_sell_offer", "created_at": "2026-03-02T00:00:00Z"}
 
     client = _FakeHorizonClient(
         payments=[payment],
         trades=[trade],
-        operations=[claim_op, unrelated_op],
+        operations=[claim_op, create_op, unrelated_op],
         effects_by_op={
             "13": [{"type": "claimable_balance_claimed", "asset": "native", "amount": "5"}]
         },
@@ -349,9 +370,14 @@ def test_normalize_account_activity_merges_and_sorts_by_time():
     events = normalize_account_activity(client, ACCOUNT)
 
     assert [e.timestamp for e in events] == sorted(e.timestamp for e in events)
-    assert len(events) == 3
+    assert len(events) == 4
     kinds = {e.kind for e in events}
-    assert kinds == {EventKind.TRADE, EventKind.CLAIMABLE_BALANCE_CLAIM, EventKind.PAYMENT_IN}
+    assert kinds == {
+        EventKind.TRADE,
+        EventKind.CLAIMABLE_BALANCE_CLAIM,
+        EventKind.CLAIMABLE_BALANCE_CREATE,
+        EventKind.PAYMENT_IN,
+    }
 
 
 def test_normalize_account_activity_with_no_activity_is_empty():
