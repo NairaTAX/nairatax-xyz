@@ -1,6 +1,8 @@
 # NairaTax
 
+[![CI](https://github.com/nairatax-xyz/nairatax-xyz/actions/workflows/ci.yml/badge.svg)](https://github.com/nairatax-xyz/nairatax-xyz/actions/workflows/ci.yml)
 [![Built on Stellar](https://img.shields.io/badge/Built%20on-Stellar-blue?logo=stellar)](https://stellar.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **On-chain tax reporting for the Stellar ecosystem.** NairaTax reads a Stellar
 account's real activity, works out which movements are taxable, applies a
