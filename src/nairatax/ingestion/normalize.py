@@ -10,9 +10,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nairatax.models import Asset, EventKind, NormalizedEvent
+
+if TYPE_CHECKING:
+    from nairatax.ingestion.horizon_client import HorizonClient
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -193,3 +196,99 @@ def normalize_trade(raw: dict[str, Any], account_id: str) -> NormalizedEvent | N
         counterparty=counterparty,
         source_operation_id=str(raw.get("base_offer_id") or raw["id"]),
     )
+
+
+def normalize_claimable_balance_create(
+    raw: dict[str, Any], account_id: str
+) -> NormalizedEvent | None:
+    """Normalize a ``create_claimable_balance`` operation. Unlike the claim
+    side, the create operation carries its own asset/amount, so no effects
+    lookup is needed.
+    """
+    if raw.get("source_account") != account_id:
+        return None
+    claimants = raw.get("claimants") or []
+    counterparty = claimants[0]["destination"] if len(claimants) == 1 else None
+    return NormalizedEvent(
+        event_id=f"claimable_balance:{raw['id']}",
+        account=account_id,
+        timestamp=_parse_timestamp(raw["created_at"]),
+        kind=EventKind.CLAIMABLE_BALANCE_CREATE,
+        asset=_asset_from_canonical(raw["asset"]),
+        amount=Decimal(raw["amount"]),
+        counterparty=counterparty,
+        source_operation_id=raw["id"],
+    )
+
+
+def normalize_claimable_balance_claim(
+    raw: dict[str, Any], account_id: str, effects: list[dict[str, Any]]
+) -> NormalizedEvent | None:
+    """Normalize a ``claim_claimable_balance`` operation.
+
+    The operation resource itself only carries ``claimant`` and
+    ``balance_id`` — not the asset or amount claimed. That data lives on the
+    operation's ``claimable_balance_claimed`` effect, so callers must fetch
+    and pass in ``effects`` (see ``HorizonClient.get_operation_effects``).
+    Returns ``None`` rather than a guessed amount if that effect is missing.
+    """
+    if raw.get("claimant") != account_id:
+        return None
+    claim_effect = next(
+        (e for e in effects if e.get("type") == "claimable_balance_claimed"), None
+    )
+    if claim_effect is None:
+        return None
+    return NormalizedEvent(
+        event_id=f"claimable_balance:{raw['id']}",
+        account=account_id,
+        timestamp=_parse_timestamp(raw["created_at"]),
+        kind=EventKind.CLAIMABLE_BALANCE_CLAIM,
+        asset=_asset_from_canonical(claim_effect["asset"]),
+        amount=Decimal(claim_effect["amount"]),
+        source_operation_id=raw["id"],
+    )
+
+
+_CLAIMABLE_BALANCE_OP_TYPES = frozenset(
+    {"create_claimable_balance", "claim_claimable_balance"}
+)
+
+
+def normalize_account_activity(client: HorizonClient, account_id: str) -> list[NormalizedEvent]:
+    """Fetch and normalize everything NairaTax currently understands for one
+    account: payments/path payments, DEX trades, and claimable balance
+    create/claim, merged into a single timestamp-ordered event stream.
+
+    Operations this module can't safely normalize (e.g. ``account_merge``,
+    or a claim whose ``claimable_balance_claimed`` effect is missing) are
+    silently dropped by the underlying ``normalize_*`` functions rather than
+    raising — a partial, honest event stream beats a hard failure on one
+    unusual operation in an otherwise long history.
+    """
+    events: list[NormalizedEvent] = []
+
+    for raw in client.iter_payments(account_id):
+        event = normalize_payment(raw, account_id)
+        if event is not None:
+            events.append(event)
+
+    for raw in client.iter_trades(account_id):
+        event = normalize_trade(raw, account_id)
+        if event is not None:
+            events.append(event)
+
+    for raw in client.iter_operations(account_id):
+        op_type = raw.get("type")
+        if op_type not in _CLAIMABLE_BALANCE_OP_TYPES:
+            continue
+        if op_type == "create_claimable_balance":
+            event = normalize_claimable_balance_create(raw, account_id)
+        else:
+            effects = client.get_operation_effects(raw["id"])
+            event = normalize_claimable_balance_claim(raw, account_id, effects)
+        if event is not None:
+            events.append(event)
+
+    events.sort(key=lambda event: event.timestamp)
+    return events
