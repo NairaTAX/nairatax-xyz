@@ -1,0 +1,49 @@
+# NairaTax jurisdiction rule pack — Nigeria
+#
+# ============================================================================
+# UNVERIFIED — DO NOT FILE ON THIS PACK WITHOUT CONFIRMING EVERY FIGURE
+# ============================================================================
+# The bands and relief formula below are the pre-Tax-Act-2025 PITA personal
+# income tax structure, used here as a structurally plausible placeholder so
+# the rules engine has real numbers to compute against. Nigeria's Tax Act
+# 2025 (effective 1 January 2026) changed personal income tax thresholds,
+# and this pack has NOT been reconciled against the NRS Fourth Schedule or
+# any other official post-reform guidance. Treat every number in this file
+# as provisional until someone with current, confirmed NTA 2025 figures
+# updates it and flips `verified` to true.
+id: nigeria-nta-2025
+jurisdiction: nigeria
+display_name: "Nigeria — personal income tax bands applied to crypto disposals (NTA 2025)"
+currency: NGN
+version: "0.1.0-unverified"
+verified: false
+source_note: >
+  Placeholder figures carried over from the pre-2025 PITA band structure.
+  Confirm against the Nigeria Tax Act 2025 and NRS Fourth Schedule before
+  anyone files a return computed with this pack. See the README's
+  "Important — not tax advice" section.
+
+# Progressive bands applied to chargeable income (gross income minus the
+# consolidated relief below). upper_bound is the cumulative ceiling for that
+# band in NGN; the final band (upper_bound: null) is unbounded.
+income_tax_bands:
+  - upper_bound: "300000"
+    rate: "0.07"
+  - upper_bound: "600000"
+    rate: "0.11"
+  - upper_bound: "1100000"
+    rate: "0.15"
+  - upper_bound: "1600000"
+    rate: "0.19"
+  - upper_bound: "3200000"
+    rate: "0.21"
+  - upper_bound: null
+    rate: "0.24"
+
+# Consolidated Relief Allowance: the higher of a flat amount or a minimum
+# percentage of gross income, plus a further flat percentage of gross
+# income — both deducted from gross income before the bands above apply.
+consolidated_relief:
+  flat_amount: "200000"
+  minimum_percent_of_gross: "0.01"
+  additional_percent_of_gross: "0.20"
