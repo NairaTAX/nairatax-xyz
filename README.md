@@ -72,56 +72,90 @@ graph TB
 
 ## Repository Structure
 
-This repo (`nairatax-xyz`) is the NairaTax org landing page — overview,
-architecture, and roadmap. The engine, web app, and rule packs live in
-sibling repos; see [NairaTax Organization](#nairatax-organization) below.
+This repo (`nairatax-xyz`) is the org landing page and currently also hosts
+the reference implementation of the pipeline described above — ingestion,
+classification, FIFO cost basis, rules, and reporting — as a Python package,
+pending a split into `nairatax-engine` / `nairatax-rules` (see
+[NairaTax Organization](#nairatax-organization)).
 
 ```
 nairatax-xyz/
 │
-└── README.md   ← This file — org overview, architecture, and roadmap
+├── README.md              ← This file
+├── pyproject.toml         ← Package metadata, ruff/pytest config
+├── .env.example           ← Configuration template
+├── src/nairatax/
+│   ├── models.py          ← Shared data models (Decimal-based)
+│   ├── config.py          ← Env-driven settings
+│   ├── pricing.py         ← Fair-market-value pricing seam
+│   ├── pipeline.py        ← Wires everything below into one call
+│   ├── cli.py             ← `nairatax` command-line interface
+│   ├── ingestion/         ← Horizon client + normalizers
+│   ├── classification/    ← Rule-based event classifier
+│   ├── cost_basis/        ← Portfolio-wide FIFO engine
+│   ├── rules/             ← Rule pack schema, loader, engine, packs/*.yaml
+│   └── reporting/         ← Report builder, CSV/JSON export
+└── tests/                 ← One test module per source module
 ```
 
 ## Quick Start
 
-### 1. Clone the repos you need
+### 1. Install
 
 ```bash
-git clone https://github.com/nairatax-xyz/nairatax-engine
-git clone https://github.com/nairatax-xyz/nairatax-web
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 ```
 
-### 2. Set up the engine
+### 2. Configure (optional)
 
 ```bash
-cd nairatax-engine && ⟨install⟩ && ⟨run tests⟩
+cp .env.example .env
 ```
 
-### 3. Set up the web app
+Every setting has a sane default (testnet Horizon, Nigeria jurisdiction) —
+see `src/nairatax/config.py`.
+
+### 3. Run a report
 
 ```bash
-cd ../nairatax-web && ⟨install⟩ && ⟨run dev⟩
+nairatax report GABC...YOURACCOUNT --year 2026 --price native=1500
 ```
 
-⟨Fill each repo's own README with its specific setup; keep this top-level one
-pointed at the whole system.⟩
+`--price` seeds the demo `StaticPriceOracle` (see
+[Dependencies](#dependencies) below) — real historical pricing is still
+roadmap. Add `--format csv` or `--output report.json` as needed; run
+`nairatax report --help` for the full option list.
 
 ## Testing
 
-No application code lives in this repo — it's the org landing page. Each
-service repo (`nairatax-engine`, `nairatax-web`, `nairatax-rules`) owns and
-documents its own test suite.
+```bash
+pytest        # full suite
+ruff check .  # lint
+```
 
 ## Roadmap
 
-- [ ] Historical, multi-asset fiat pricing via a data-provider adapter
+- [x] Horizon ingestion (payments, path payments, DEX trades, claimable balances)
+- [x] Rule-based classifier with an explicit needs-review path
+- [x] Portfolio-wide FIFO cost basis engine
+- [x] Nigeria rule pack mechanism (progressive bands + consolidated relief) — figures unverified, see the pack file
+- [x] CSV/JSON report export and a `nairatax` CLI
+- [ ] Historical, multi-asset fiat pricing via a real data-provider adapter (currently a fixed-rate stand-in only)
+- [ ] Confirm Nigeria rule pack figures against the Tax Act 2025 / NRS Fourth Schedule and flip `verified: true`
+- [ ] Review UI for NEEDS_REVIEW events (resolves to acquisition/income/gift) — split into `nairatax-web`
+- [ ] Split the reference implementation into `nairatax-engine` and `nairatax-rules`
 - [ ] Additional jurisdiction rule packs
-- [ ] ⟨your next items⟩
 
 ## Project Status
 
-⟨State it honestly — e.g. "prototype", "engine working, web in progress",
-"pre-release". Don't overclaim; list what actually runs today.⟩
+**Prototype.** The ingestion → classification → FIFO cost basis → rules →
+report pipeline runs end to end today, against Stellar Horizon, with a full
+test suite (see `pytest`). What's *not* yet real: historical fiat pricing
+(the CLI takes a fixed manual rate), the Nigeria tax figures (explicitly
+unverified — see below), and any UI for resolving events the classifier
+flags as needing review. Treat output as a structural preview of what a
+finished report will look like, not something to file on.
 
 ## Important — Not Tax Advice
 
@@ -139,15 +173,15 @@ return.
 
 ## Dependencies
 
-- **Chain**: Stellar / Soroban · Horizon + Stellar RPC · USDC as a key asset
-- **Engine**: ⟨language / framework⟩
-- **Web**: ⟨framework⟩
-- **Price data**: ⟨provider⟩ adapter for historical asset → fiat valuation
-- **Rules**: versioned data packs per jurisdiction
+- **Chain**: Stellar / Soroban · Horizon (via a minimal `httpx`-based client, not stellar-sdk's CallBuilder) · USDC as a key asset
+- **Engine**: Python 3.11+ · Pydantic v2 (Decimal-based models) · Typer (CLI) · PyYAML (rule packs)
+- **Price data**: `StaticPriceOracle` fixed-rate stand-in today (`src/nairatax/pricing.py`) — a real historical, multi-asset data-provider adapter is still roadmap
+- **Web**: ⟨framework — not yet started, will live in `nairatax-web`⟩
+- **Rules**: versioned YAML data packs per jurisdiction (`src/nairatax/rules/packs/`)
 
 ## License
 
-⟨Choose a license — e.g. MIT / Apache-2.0.⟩
+MIT — see [LICENSE](LICENSE).
 
 ## Contributing
 
