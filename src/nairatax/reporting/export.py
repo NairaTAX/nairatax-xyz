@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from decimal import Decimal
 
 from nairatax.models import TaxReport
@@ -15,6 +16,7 @@ def _fixed_point(value: Decimal) -> str:
     what a spreadsheet or an accountant expects in a CSV cell.
     """
     return format(value, "f")
+
 
 CSV_FIELDNAMES = [
     "date",
@@ -51,3 +53,38 @@ def to_csv(report: TaxReport) -> str:
             }
         )
     return buffer.getvalue()
+
+
+def to_json(report: TaxReport, *, indent: int | None = 2) -> str:
+    """Render the full report — summary totals plus the per-event ledger —
+    as JSON. Decimals are formatted fixed-point for the same reason as in
+    :func:`to_csv`, rather than relying on a JSON number type that can't
+    represent arbitrary-precision decimals exactly anyway.
+    """
+    payload = {
+        "account": report.account,
+        "jurisdiction": report.jurisdiction,
+        "currency": report.currency,
+        "period_start": report.period_start.isoformat(),
+        "period_end": report.period_end.isoformat(),
+        "summary": {
+            "total_capital_gains": _fixed_point(report.total_capital_gains),
+            "total_income": _fixed_point(report.total_income),
+            "total_tax_owed": _fixed_point(report.total_tax_owed),
+            "needs_review_count": report.needs_review_count,
+        },
+        "line_items": [
+            {
+                "event_id": item.event_id,
+                "date": item.date.isoformat(),
+                "category": item.category.value,
+                "asset": item.asset.id,
+                "quantity": _fixed_point(item.quantity),
+                "amount_fiat": _fixed_point(item.amount_fiat),
+                "tax_owed_fiat": _fixed_point(item.tax_owed_fiat),
+                "description": item.description,
+            }
+            for item in report.line_items
+        ],
+    }
+    return json.dumps(payload, indent=indent)
