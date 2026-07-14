@@ -40,6 +40,11 @@ At a high level, it does three things:
 - **Applies the rules**: Jurisdiction rule packs live as auditable data, not magic numbers — starting with Nigeria (NTA 2025)
 - **Reports**: A clear per-event ledger plus a summary of tax owed, exportable for records or an accountant
 
+See [docs/methodology.md](docs/methodology.md) for the reasoning behind
+FIFO-across-your-portfolio, how swaps are treated as a disposal and an
+acquisition at once, and how netted gains/losses get taxed once and
+allocated back to individual ledger lines.
+
 ## Architecture
 
 ```mermaid
