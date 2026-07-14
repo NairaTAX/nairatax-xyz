@@ -154,3 +154,42 @@ def normalize_payment(raw: dict[str, Any], account_id: str) -> NormalizedEvent |
 
     # account_merge and any future/unknown payment-feed operation type.
     return None
+
+
+def normalize_trade(raw: dict[str, Any], account_id: str) -> NormalizedEvent | None:
+    """Normalize one record from the Horizon ``/trades`` feed.
+
+    A trade always settles as: ``base_account`` gives up ``base_amount`` of
+    ``base_asset`` and receives ``counter_amount`` of ``counter_asset``, and
+    vice versa for ``counter_account`` — regardless of ``base_is_seller``,
+    which only records the original offer's buy/sell direction for
+    bookkeeping, not which side of the settlement each account is on.
+    """
+    base_asset = _asset_from_split_fields(raw, prefix="base_")
+    counter_asset = _asset_from_split_fields(raw, prefix="counter_")
+    base_amount = Decimal(raw["base_amount"])
+    counter_amount = Decimal(raw["counter_amount"])
+
+    if raw["base_account"] == account_id:
+        given_asset, given_amount = base_asset, base_amount
+        received_asset, received_amount = counter_asset, counter_amount
+        counterparty = raw.get("counter_account")
+    elif raw["counter_account"] == account_id:
+        given_asset, given_amount = counter_asset, counter_amount
+        received_asset, received_amount = base_asset, base_amount
+        counterparty = raw.get("base_account")
+    else:
+        return None
+
+    return NormalizedEvent(
+        event_id=f"trade:{raw['id']}",
+        account=account_id,
+        timestamp=_parse_timestamp(raw["ledger_close_time"]),
+        kind=EventKind.TRADE,
+        asset=given_asset,
+        amount=given_amount,
+        counter_asset=received_asset,
+        counter_amount=received_amount,
+        counterparty=counterparty,
+        source_operation_id=str(raw.get("base_offer_id") or raw["id"]),
+    )
