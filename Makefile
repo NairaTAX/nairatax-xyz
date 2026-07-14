@@ -1,4 +1,4 @@
-.PHONY: install test lint fix check
+.PHONY: install test coverage lint fix check
 
 VENV_BIN := .venv/bin
 
@@ -9,6 +9,9 @@ install:
 
 test:
 	$(VENV_BIN)/pytest
+
+coverage:
+	$(VENV_BIN)/pytest --cov=nairatax --cov-report=term-missing
 
 lint:
 	$(VENV_BIN)/ruff check .

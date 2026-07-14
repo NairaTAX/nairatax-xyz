@@ -25,5 +25,5 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
-      - name: Test (pytest)
-        run: pytest
+      - name: Test (pytest, with coverage)
+        run: pytest --cov=nairatax --cov-report=term-missing --cov-fail-under=90
